@@ -185,7 +185,7 @@ export async function renderPipeline(
 
   updateRender(jobId, { status: "complete" });
   emitProgress(jobId, { status: "complete" });
-  console.log("🎬 FINAL VIDEO GENERATED");
+  console.log("🎬 SUCCESS!AWESOME DUUUUDE");
   return { success: true };
 }
 function generateYoutubeDescription(scenes: any[]): string {

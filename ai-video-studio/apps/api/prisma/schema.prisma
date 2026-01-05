@@ -21,8 +21,8 @@ model User {
 
   affiliate Affiliate?
   renders   Render[]
-
-  createdAt DateTime @default(now())
+  videos    Video[]
+  createdAt DateTime   @default(now())
 }
 
 model Team {
@@ -40,7 +40,9 @@ model Render {
   status    RenderStatus
   createdAt DateTime     @default(now())
 
-  user User @relation(fields: [userId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+  video   Video?
+  videoId String?
 }
 
 model Template {
@@ -50,6 +52,23 @@ model Template {
   basePrompt String
   isPaid     Boolean @default(false)
   priceUSD   Float?
+}
+
+model Video {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  prompt         String
+  style          String
+  seed           Int?
+  negativePrompt String?
+  status         String
+  videoUrl       String?
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  renderId String? @unique
+  render   Render? @relation(fields: [renderId], references: [id])
 }
 
 model Affiliate {

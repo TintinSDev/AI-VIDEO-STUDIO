@@ -4,12 +4,15 @@ import http from "http";
 import fs from "fs";
 import path from "path";
 import crypto from "crypto";
+import { PrismaClient } from "@prisma/client";
 import { getAuthClient } from "./auth/auth";
 import renderRouter from "./routes/render";
 import { renderQueue } from "./queue/renderQueue";
 import { initSocket } from "./socket";
 import { getRender } from "./state/renderState";
 import { uploadToYouTube } from "./services/youtubeUploader";
+
+const prisma = new PrismaClient();
 
 const app = express();
 const server = http.createServer(app);
@@ -201,6 +204,35 @@ app.delete("/api/history/:jobId", (req, res) => {
     console.error("Cleanup Error:", error);
     res.status(500).json({ error: "Failed to clear all assets." });
   }
+});
+// GET /api/video/:id - Fetch settings for a specific video
+app.get("/api/video/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const video = await prisma.video.findUnique({
+      where: { id: id },
+      // Adjust these fields based on your Prisma schema
+      select: {
+        prompt: true,
+        style: true,
+        seed: true,
+        negativePrompt: true,
+      },
+    });
+
+    if (!video) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    res.json(video);
+  } catch (error) {
+    console.error("Fetch error:", error);
+    res.status(500).json({ error: "Failed to fetch video settings" });
+  }
+});
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", uptime: process.uptime() });
 });
 server.listen(3001, () => {
   console.log("API + WS running on http://localhost:3001");

@@ -10,7 +10,7 @@ type RenderStatus =
   | "rendering"
   | "assembling"
   | "complete"
-  | "error";
+  | "failed";
 type RenderMode = "full" | "image" | "video" | "audio";
 
 interface HistoryItem {
@@ -24,6 +24,7 @@ interface HistoryItem {
 export default function Page() {
   const [activeMode, setActiveMode] = useState<RenderMode>("full");
   const [script, setScript] = useState("");
+  const [lookupId, setLookupId] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<RenderStatus>("idle");
   const [scenes, setScenes] = useState<any[]>([]);
@@ -38,7 +39,52 @@ export default function Page() {
     sizeMB: 0,
     formatted: "0 MB",
   });
+  const [isApiOnline, setIsApiOnline] = useState<boolean | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error";
+  } | null>(null);
 
+  // API HEALTH CHECK STATUS MAAATE
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        // We point to your health check or just the base API URL
+        const res = await fetch("http://localhost:3001/api/health");
+        setIsApiOnline(res.ok);
+      } catch {
+        setIsApiOnline(false);
+      }
+    };
+
+    checkStatus();
+    const interval = setInterval(checkStatus, 10000); // Check every 10 seconds
+    return () => clearInterval(interval);
+  }, []);
+
+  // CLIPBOARD COPY UTIL
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showToast("📋 ID copied to clipboard!"); // Reusing the toast we just built!
+    } catch (err) {
+      showToast("❌ Failed to copy", "error");
+    }
+  };
+  // LOAD VIDEO SETTINGS UTIL
+  // const loadVideoSettings = async (id: string) => {
+  //   const res = await fetch(`http://localhost:3001/api/video/${id}`);
+  //   const data = await res.json();
+
+  //   setMainPrompt(data.prompt);
+  //   setStylePreset(data.style);
+
+  //   // If you add a "Seed" input to your UI:
+  //   setManualSeed(data.seed);
+
+  //   showToast(`🔄 Loaded settings! Seed: ${data.seed || "Auto"}`);
+  // };
+  // FETCH HISTORY
   const fetchHistory = async () => {
     try {
       const res = await fetch("http://localhost:3001/api/history");
@@ -60,14 +106,14 @@ export default function Page() {
     setStatus("idle");
     setScenes([]);
   };
-
+  // POLLING LOGIC
   useEffect(() => {
     if (!jobId) return;
     const interval = setInterval(async () => {
       try {
         const res = await fetch(`http://localhost:3001/render/${jobId}`);
         if (res.status === 404) {
-          setStatus("error");
+          setStatus("failed");
           clearInterval(interval);
           return;
         }
@@ -83,6 +129,7 @@ export default function Page() {
     return () => clearInterval(interval);
   }, [jobId]);
 
+  // RENDER FUNCTION
   async function renderVideo(mode: RenderMode = "full") {
     if (!script.trim()) return;
     setActiveMode(mode);
@@ -97,7 +144,7 @@ export default function Page() {
       });
       const data = await res.json();
       if (!data.jobId) {
-        setStatus("error");
+        setStatus("failed");
         return;
       }
       setJobId(data.jobId);
@@ -108,10 +155,10 @@ export default function Page() {
       setVideoTitle(suggestedTitle.substring(0, 95) || "New AI Story");
     } catch (error) {
       console.error("Render initiation failed:", error);
-      setStatus("error");
+      setStatus("failed");
     }
   }
-
+  // YOUTUBE UPLOAD HANDLER
   const handleUpload = async () => {
     if (!window.confirm("Publish to YouTube?")) return;
     setLoading(true);
@@ -136,6 +183,7 @@ export default function Page() {
       setLoading(false);
     }
   };
+  // DELETE HANDLER
   const handleDelete = async (jobId: string) => {
     if (
       !window.confirm(
@@ -173,6 +221,30 @@ export default function Page() {
     fetchStorageStats();
   }, [history]);
 
+  // TOAST AUTO DISMISS
+  const showToast = (
+    message: string,
+    type: "success" | "error" = "success"
+  ) => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 5000); // Hide after 5 seconds
+  };
+
+  // TOAST ON STATUS CHANGE
+  useEffect(() => {
+    if (status === "complete") {
+      showToast("🎬 Video Rendered Successfully!");
+      // These ensure your history and storage bar update immediately
+      fetchHistory?.();
+      fetchStorageStats?.();
+    } else if (status === "failed") {
+      showToast("❌ Render Failed. Check server logs.", "error");
+    }
+  }, [status]);
+
+  {
+    /*MAIN RETUUUUUUURN*/
+  }
   return (
     <main
       style={{
@@ -182,11 +254,56 @@ export default function Page() {
         fontFamily: "sans-serif",
       }}
     >
-      <h1>AI Video Studio</h1>
+      <div
+        style={{
+          position: "fixed",
+          top: 20,
+          right: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "6px 12px",
+          background: "white",
+          borderRadius: "20px",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          zIndex: 1000,
+          fontSize: "12px",
+          fontWeight: "bold",
+        }}
+      >
+        <span
+          className={isApiOnline ? "status-pulse" : ""}
+          style={{
+            height: "10px",
+            width: "10px",
+            backgroundColor:
+              isApiOnline === null
+                ? "#aaa"
+                : isApiOnline
+                ? "#52c41a"
+                : "#ff4d4f",
+            borderRadius: "50%",
+            display: "inline-block",
+            boxShadow: isApiOnline ? "0 0 8px #52c41a" : "none",
+          }}
+        />
+        {isApiOnline === null
+          ? "CONNECTING..."
+          : isApiOnline
+          ? "SYSTEM ONLINE"
+          : "SYSTEM OFFLINE"}
+      </div>
+      <h1 className="text-4xl font-bold text-gray-600">AI Video Studio</h1>
 
       <textarea
         rows={10}
-        style={{ width: "100%", marginTop: 16, padding: 12, borderRadius: 8 }}
+        style={{
+          width: "100%",
+          marginTop: 16,
+          padding: 12,
+          borderRadius: 8,
+          border: "1px solid #ccc",
+        }}
         placeholder="Paste script here..."
         value={script}
         onChange={(e) => setScript(e.target.value)}
@@ -195,7 +312,14 @@ export default function Page() {
       <select
         value={style}
         onChange={(e) => setStyle(e.target.value)}
-        style={{ marginTop: 16, display: "block", padding: "8px" }}
+        style={{
+          marginTop: 16,
+          display: "block",
+          padding: "8px",
+          borderRadius: 4,
+          border: "1px solid #ccc",
+          maxWidth: 200,
+        }}
       >
         <option value="cinematic">Cinematic</option>
         <option value="documentary">Documentary</option>
@@ -217,6 +341,11 @@ export default function Page() {
             padding: "12px 24px",
             fontWeight: "bold",
             cursor: "pointer",
+            background:
+              status === "rendering" || status === "assembling"
+                ? "#ccc"
+                : "#627388",
+            borderRadius: 30,
           }}
         >
           {status === "rendering" || status === "assembling"
@@ -224,7 +353,7 @@ export default function Page() {
             : "🎬 One-Click Render"}
         </button>
 
-        {(status === "complete" || status === "error") && (
+        {(status === "complete" || status === "failed") && (
           <button onClick={resetState} style={{ padding: "12px 24px" }}>
             🔄 New Project
           </button>
@@ -276,7 +405,6 @@ export default function Page() {
                   type="video/mp4"
                 />
               </video>
-              {/* Render your YouTube Publish box here only for video modes */}
             </div>
           )}
 
@@ -499,6 +627,15 @@ export default function Page() {
           </p>
         </div>
       </div>
+      {/* <div className="flex gap-2 mb-4">
+        <input
+          value={lookupId}
+          onChange={(e) => setLookupId(e.target.value)}
+          placeholder="Paste Video ID to clone settings..."
+          className="border p-2 rounded flex-1"
+        />
+        <button onClick={() => loadVideoSettings(lookupId)}>Load</button>
+      </div> */}
       {/* 🎬 HISTORY YY */}
       <section>
         <div
@@ -547,6 +684,37 @@ export default function Page() {
                 flexDirection: "column",
               }}
             >
+              {/* ID COPYING HEHE */}
+              <div className="flex items-center justify-between">
+                {/* <span className="text-xs font-mono text-gray-400">
+                  ID: {video.id.slice(0, 8)}...
+                </span> */}
+
+                <button
+                  onClick={() => copyToClipboard(video.id)}
+                  className="copy-btn"
+                  title="Copy Full ID"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <rect
+                      x="9"
+                      y="9"
+                      width="13"
+                      height="13"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </div>
               {/* Thumbnail Preview */}
               <div
                 style={{
@@ -570,7 +738,6 @@ export default function Page() {
                     zIndex: 2,
                   }}
                   onError={(e) => {
-                    // Hide the broken image icon
                     e.currentTarget.style.display = "none";
                   }}
                 />
@@ -652,6 +819,7 @@ export default function Page() {
                       fontSize: "13px",
                       flex: 0.5,
                     }}
+                    title="🗑️ DELETE 🗑️"
                   >
                     🗑️
                   </button>
@@ -661,79 +829,111 @@ export default function Page() {
           ))}
         </div>
       </section>
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "30px",
+            right: "30px",
+            padding: "16px 24px",
+            background: toast.type === "success" ? "#1a1a1a" : "#ff4d4f",
+            color: "white",
+            borderRadius: "12px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.2)",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            zIndex: 9999,
+            animation: "slideIn 0.3s ease-out",
+            border: "1px solid rgba(255,255,255,0.1)",
+          }}
+        >
+          <span style={{ fontSize: "20px" }}>
+            {toast.type === "success" ? "✅" : "⚠️"}
+          </span>
+          <div>
+            <div style={{ fontWeight: "bold", fontSize: "14px" }}>
+              {toast.type === "success"
+                ? "System Notification"
+                : "System Error"}
+            </div>
+            <div style={{ fontSize: "13px", opacity: 0.9 }}>
+              {toast.message}
+            </div>
+          </div>
+          <button
+            onClick={() => setToast(null)}
+            style={{
+              background: "none",
+              border: "none",
+              color: "white",
+              cursor: "pointer",
+              fontSize: "18px",
+              marginLeft: "10px",
+              opacity: 0.5,
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
+      <style jsx>{`
+        .copy-btn {
+          opacity: 0.5;
+          transition: all 0.2s ease;
+          padding: 4px;
+          border-radius: 6px;
+          border: 1px solid transparent;
+          background: transparent;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: inherit;
+        }
+
+        .copy-btn:hover {
+          opacity: 1;
+          background: rgba(0, 0, 0, 0.05);
+          border-color: rgba(0, 0, 0, 0.1);
+          transform: translateY(-1px);
+        }
+
+        .copy-btn:active {
+          transform: translateY(0);
+          background: rgba(0, 0, 0, 0.1);
+        }
+
+        /* Optional: Pulsing effect for the Online Status we built earlier */
+        .status-pulse {
+          animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+          0% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+          100% {
+            opacity: 1;
+          }
+        }
+      `}</style>
     </main>
   );
 }
-const styles = {
-  container: {
-    marginTop: "50px",
-    borderTop: "1px solid #ddd",
-    paddingTop: "30px",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: "20px",
-  },
-  refreshBtn: {
-    padding: "8px 16px",
-    borderRadius: "6px",
-    border: "1px solid #ccc",
-    cursor: "pointer",
-    background: "#fff",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-    gap: "20px",
-  },
-  card: {
-    background: "#fff",
-    borderRadius: "10px",
-    overflow: "hidden",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-    transition: "transform 0.2s",
-  },
-  thumbContainer: {
-    position: "relative",
-    width: "100%",
-    height: "157px",
-    background: "#000",
-  },
-  image: { width: "100%", height: "100%", objectFit: "cover" },
-  badge: {
-    position: "absolute",
-    top: "10px",
-    right: "10px",
-    background: "rgba(0,0,0,0.6)",
-    color: "#fff",
-    padding: "2px 8px",
-    borderRadius: "4px",
-    fontSize: "10px",
-  },
-  details: { padding: "15px" },
-  jobId: { margin: "0 0 4px 0", fontSize: "14px", fontWeight: "bold" },
-  date: { margin: "0 0 15px 0", fontSize: "12px", color: "#888" },
-  btnGroup: { display: "flex", gap: "10px" },
-  viewBtn: {
-    flex: 1,
-    textAlign: "center",
-    padding: "10px",
-    background: "#000",
-    color: "#fff",
-    textDecoration: "none",
-    borderRadius: "6px",
-    fontSize: "13px",
-  },
-  downloadBtn: {
-    flex: 1,
-    textAlign: "center",
-    padding: "10px",
-    border: "1px solid #000",
-    color: "#000",
-    textDecoration: "none",
-    borderRadius: "6px",
-    fontSize: "13px",
-  },
-};

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-
+import "../globals.css";
 export const metadata = {
   title: "AI Video Studio",
   description: "One-click AI video rendering",
