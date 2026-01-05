@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String  @id @default(cuid())
+  email       String  @unique
+  name        String?
+  plan        Plan    @default(FREE)
+  minutesUsed Float   @default(0)
+  rendersUsed Int     @default(0)
+  isAdmin     Boolean @default(false)
+
+  teamId String?
+  team   Team?   @relation(fields: [teamId], references: [id])
+
+  affiliate Affiliate?
+  renders   Render[]
+
+  createdAt DateTime @default(now())
+}
+
+model Team {
+  id      String @id @default(cuid())
+  name    String
+  ownerId String
+  members User[]
+}
+
+model Render {
+  id        String       @id @default(cuid())
+  userId    String
+  duration  Float
+  costUSD   Float
+  status    RenderStatus
+  createdAt DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Template {
+  id         String  @id @default(cuid())
+  name       String
+  category   String
+  basePrompt String
+  isPaid     Boolean @default(false)
+  priceUSD   Float?
+}
+
+model Affiliate {
+  id       String @id @default(cuid())
+  userId   String @unique
+  rate     Float  @default(0.3)
+  earnings Float  @default(0)
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+enum Plan {
+  FREE
+  CREATOR
+  STUDIO
+}
+
+enum RenderStatus {
+  QUEUED
+  RUNNING
+  FAILED
+  COMPLETE
+}

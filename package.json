@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@runwayml/sdk": "^3.11.0"
+  }
+}
