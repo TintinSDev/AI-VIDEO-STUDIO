@@ -3,3 +3,41 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@theme {
+  --color-neon-pink: #ff00ff;
+  --color-neon-purple: #9d00ff;
+  --color-deep-navy: #020617;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-deep-navy);
+    color: white;
+    /* This creates the 'Volumetric Fog' feel */
+    background-image: radial-gradient(
+        circle at 50% -20%,
+        rgba(157, 0, 255, 0.15),
+        transparent 40%
+      ),
+      radial-gradient(
+        circle at 0% 100%,
+        rgba(255, 0, 255, 0.1),
+        transparent 30%
+      );
+    min-height: 100vh;
+  }
+}
+
+.glow-box {
+  box-shadow: 0 0 20px rgba(157, 0, 255, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px); /* Cinematic Reflection/Glass effect */
+}
+.glass-reflection {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
